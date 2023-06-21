@@ -28,8 +28,8 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 import keras.backend as K
 K.clear_session()
 
-ALPACA_API_KEY = 'PK59CQ7FVC00MI7ZQ2D4'
-ALPACA_SECRET_KEY = 'MGz923hgdl6qC12Rtk1OjEe1Zk87uctn3cGlmTzB'
+ALPACA_API_KEY = ''
+ALPACA_SECRET_KEY = ''
 ALPACA_BASE_URL = 'https://paper-api.alpaca.markets'
 
 api = tradeapi.REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, base_url=ALPACA_BASE_URL)
