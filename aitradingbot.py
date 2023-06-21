@@ -28,8 +28,8 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 import keras.backend as K
 K.clear_session()
 
-ALPACA_API_KEY = 'PK59CQ7FVC00MI7ZQ2D4'
-ALPACA_SECRET_KEY = 'MGz923hgdl6qC12Rtk1OjEe1Zk87uctn3cGlmTzB'
+ALPACA_API_KEY = ''
+ALPACA_SECRET_KEY = ''
 ALPACA_BASE_URL = 'https://paper-api.alpaca.markets'
 
 api = tradeapi.REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, base_url=ALPACA_BASE_URL)
@@ -110,42 +110,61 @@ def get_data(symbol, start, end):
 
     return data
 
-# technical indicators helper functions
+class SkillManager:
+    def __init__(self):
+        self.skill_library = {}
 
-def calculate_fibonacci_retracement_levels(data):
-    max_price = data['high'].max()
-    min_price = data['low'].min()
-    diff = max_price - min_price
+    def add_skill(self, name, strategy):
+        """Store a trading strategy in the Skill Library."""
+        self.skill_library[name] = strategy
 
-    levels = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]
-    retracement_levels = [(max_price - l * diff) for l in levels]
+    def get_skill(self, name):
+        """Retrieve a trading strategy from the Skill Library."""
+        return self.skill_library.get(name)
 
-    return retracement_levels
+    def generate_strategy(self):
+        """Generate a new trading strategy based on the current strategies in the Skill Library."""
+        strategy_names = list(self.skill_library.keys())
+        new_strategy_name = strategy_names[0] + "_" + strategy_names[1]
+        new_strategy = lambda market_conditions: self.skill_library[strategy_names[0]](market_conditions) and self.skill_library[strategy_names[1]](market_conditions)
+        self.add_skill(new_strategy_name, new_strategy)
 
+    def verify_strategy(self, actions, feedback):
+        """Verify a trading strategy based on the actions taken by the bot and the feedback from the market."""
+        return feedback > 0
 
-def calculate_fibonacci_extension_levels(data):
-    max_price = data['high'].max()
-    min_price = data['low'].min()
-    diff = max_price - min_price
+    def retrieve_strategy(self, market_conditions):
+        """Retrieve a trading strategy from the Skill Library based on the current market conditions."""
+        return self.get_skill(list(self.skill_library.keys())[0])
 
-    levels = [0.0, 1.0, 1.618, 2.0, 2.618, 3.0]
-    extension_levels = [(max_price + l * diff) for l in levels]
+class TradingBot:
+    def __init__(self):
+        self.skill_manager = SkillManager()
 
-    return extension_levels  # Add this line
+    def trade(self, feedback):
+        """Trade stocks using a strategy retrieved from the Skill Manager."""
+        strategy = self.skill_manager.retrieve_strategy(market_conditions)
+        action = strategy(market_conditions)
+        if self.skill_manager.verify_strategy(action, feedback):
+            self.skill_manager.generate_strategy()
 
-def calculate_pivot_points(data):
-    pivot_point = (data['high'].iloc[-1] + data['low'].iloc[-1] + data['close'].iloc[-1]) / 3
-    support1 = 2 * pivot_point - data['high'].iloc[-1]
-    resistance1 = 2 * pivot_point - data['low'].iloc[-1]
-    support2 = pivot_point - (data['high'].iloc[-1] - data['low'].iloc[-1])
-    resistance2 = pivot_point + (data['high'].iloc[-1] - data['low'].iloc[-1])
-    support3 = pivot_point - 2 * (data['high'].iloc[-1] - data['low'].iloc[-1])
-    resistance3 = pivot_point + 2 * (data['high'].iloc[-1] - data['low'].iloc[-1])
+    def train(self):
+        """Train the bot using the strategies from the Skill Manager."""
+        for strategy_name, strategy in self.skill_manager.skill_library.items():
+            action = strategy(market_conditions)
+            feedback = get_feedback(action)
+            if self.skill_manager.verify_strategy(action, feedback):
+                self.skill_manager.generate_strategy()
 
-    pivot_points = [pivot_point, support1, resistance1, support2, resistance2, support3, resistance3]
+    def learn(self):
+        """Update the bot's learning algorithm to use the strategies from the Skill Manager."""
+        for strategy_name, strategy in self.skill_manager.skill_library.items():
+            action = strategy(market_conditions)
+            feedback = get_feedback(action)
+            if self.skill_manager.verify_strategy(action, feedback):
+                self.skill_manager.generate_strategy()
 
-    return pivot_points
-
+# Existing aitradingbot.py code
 def preprocess_data(data):
     # Drop the 'returns' column
     data = data.drop(['returns'], axis=1)
@@ -176,7 +195,7 @@ def preprocess_data(data):
     return x, y
 
 def define_model(input_shape, output_shape):
-    model = keras.Sequential([
+   model = keras.Sequential([
         layers.Dense(32, activation='relu', input_shape=(27,)),
         layers.Dense(16, activation='relu'),
         layers.Dense(output_shape, activation='linear')
@@ -184,7 +203,6 @@ def define_model(input_shape, output_shape):
 
     model.compile(loss='mse', optimizer='adam')
     return model
-
 
 def create_env(data, strategy):
     class TradingEnvironment(gym.Env):
@@ -199,7 +217,6 @@ def create_env(data, strategy):
             print('State shape:', self.data.iloc[0].values.shape)
             print('Observation space:', self.observation_space)
             print('Action space:', self.action_space)
-
 
         def reset(self):
             self.index = 0
@@ -222,7 +239,6 @@ def create_env(data, strategy):
             reward = 0
             done = False
             info = {}
-                       
 
             if action == 0:  # Buy
                 shares_to_buy = self.balance / close_price
@@ -275,147 +291,75 @@ def create_env(data, strategy):
             return observation, reward, self.done, info
 
         def _get_observation(self):
-          print(f"Index: {self.index}, Data shape: {self.data.shape}")
-          if self.index >= len(self.data):
-            self.done = True
-            return np.zeros((self.observation_space.shape[0],))
-        
-          state = self.data.iloc[self.index].values
-          if state.ndim == 0:
-            state = np.array([state])
+            print(f"Index: {self.index}, Data shape: {self.data.shape}")
+            if self.index >= len(self.data):
+                self.done = True
+                return np.zeros((self.observation_space.shape[0],))
+            
+            state = self.data.iloc[self.index].values
+            if state.ndim == 0:
+                state = np.array([state])
 
-          state = np.concatenate(([self.shares, self.balance, self.equity], state))
-          return state
+            state = np.concatenate(([self.shares, self.balance, self.equity], state))
+            return state
 
-        
         def save_trades(self, filepath):
-          trades_df = pd.DataFrame(self.trades_log)
-          trades_df.to_csv(filepath, index=False)
+            trades_df = pd.DataFrame(self.trades_log)
+            trades_df.to_csv(filepath, index=False)
+            env = TradingEnvironment(data)
+            print('State shape:', env.data.iloc[0].values.shape)
+            print('Observation space:', env.observation_space)
+            print('Action space:', env.action_space)
+            action_space = gym.spaces.Discrete(3)
+            observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(data.shape[1] + 2,), dtype=np.float32)
+            env = TradingEnvironment(data)
+            env.strategy = strategy
 
-    # The following block should be indented at the same level as the class definition
-    env = TradingEnvironment(data)
-    print('State shape:', env.data.iloc[0].values.shape)
-    print('Observation space:', env.observation_space)
-    print('Action space:', env.action_space)
-    action_space = gym.spaces.Discrete(3)
-    observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(data.shape[1] + 2,), dtype=np.float32)
-    env = TradingEnvironment(data)
-    env.strategy = strategy
-    
-    return env
-
-
+            return env
+          
 def train_model(x, model, episodes, batch_size, env):
-    action_size = env.action_space.n
-    epsilon = 10.0
-    epsilon_min = 0.01
-    epsilon_decay = 0.550
-    gamma = 0.50
+  action_size = env.action_space.n
+  epsilon = 10.0
+  epsilon_min = 0.01
+  epsilon_decay = 0.550
+  gamma = 0.50
+  memory = deque(maxlen=4000)
 
-    memory = deque(maxlen=4000)
-
-    for episode in range(episodes):
-        state = env.reset()
-        state_size = x.shape[1] + 4
-        state = np.concatenate(([env.shares, env.balance, env.equity], state)) # add the account information to the state
-        state = state.reshape((1, -1)) # add an extra dimension to the state variable
-        done = False
-        while not done:
-            if np.random.rand() <= epsilon:
-                action = np.random.randint(0, action_size)  
-            else:  
-                action = MCTS(state, model, env, iterations=1000) # you may want to adjust the number of iterations
-            next_state, reward, done, _ = env.step(action)
-            next_state = np.concatenate(([env.shares, env.balance, env.equity], next_state)) # add the account information to the next_state
-            next_state = next_state.reshape((1, -1)) # add an extra dimension to the next_state variable
-            memory.append((state, action, reward, next_state, done))
-            state = next_state
-
-        if len(memory) >= batch_size:
-            minibatch = random.sample(memory, batch_size)
-            X_state = []
-            X_target = []
-            for state, action, reward, next_state, done in minibatch:
-                if done:
-                    target = reward
-                else:
-                    target = reward + gamma * np.amax(model.predict(next_state)[0])
-                target_f = model.predict(state)
-                target_f[0][action] = target
-                X_state.append(state.reshape((1, -1)))
-                X_target.append(target_f.reshape((1, -1)))
-            X_state = np.concatenate(X_state, axis=0)
-            X_target = np.concatenate(X_target, axis=0)
-            model.fit(X_state, X_target, epochs=1, verbose=0)
-
-        if epsilon > epsilon_min:
-            epsilon *= epsilon_decay
-
-    return model
-
-def moving_average_strategy(data, buy_threshold=0.02, sell_threshold=0.02):
-    action = 0
-    if data['close'] > data['sma'] * (1 + buy_threshold):
-        action = 0  # Buy
-    elif data['close'] < data['sma'] * (1 - sell_threshold):
-        action = 1  # Sell
-    return action
-
-def save_trades_to_csv(trades, filepath):
-    with open(filepath, mode='w', newline='') as file:
-        fieldnames = ["action", "shares", "price", "timestamp", "profit"]
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        for trade in trades:
-            writer.writerow(trade)
-
-
-def main():
-    symbol = 'MSFT'
-    start_date = '2019-01-01'
-    end_date = '2022-12-30'
-    data = get_data(symbol, start_date, end_date)
-    x, y = preprocess_data(data)
-
-    data = get_data('MSFT', '2019-01-01', '2022-12-30')
-    
-    print("Raw data:")
-    print(data.head())
-    
-    print("\nPreprocessed data:")
-    print("X:", x[:5])
-    print("Y:", y[:5])
-
-    env = create_env(data, moving_average_strategy)
-    
-    print("Original x shape:", x.shape)    
-    print("Original y shape:", y.shape)
-    print("Environment's observation space:", env.observation_space.shape)
-    print("Model's input shape:", env.observation_space.shape)
-    
-    model = define_model(env.observation_space.shape, env.action_space.n)  # Corrected line
-
-    episodes = 50
-    batch_size = 63
-    model = train_model(x, model, episodes, batch_size, env)
-
-    model.save('trained_model.h5')
-    env.save_trades("trades.csv")
-
-    # Test the model
-    test_data = get_data('MSFT', '2023-01-01', '2023-3-31')
-    test_env = create_env(test_data, moving_average_strategy)
-    state = test_env.reset()
+for episode in range(episodes):
+    state = env.reset()
+    state_size = x.shape[1] + 4
+    state = np.concatenate(([env.shares, env.balance, env.equity], state)) # add the account information to the state
+    state = state.reshape((1, -1)) # add an extra dimension to the state variable
     done = False
     while not done:
-        state = np.concatenate(([test_env.shares, test_env.balance, test_env.equity], state))
-        state = state.reshape((1, -1))
-        action = np.argmax(model.predict(state)[0])
-        state, reward, done, info = test_env.step(action)
+        if np.random.rand() <= epsilon:
+            action = np.random.randint(0, action_size)  
+        else:  
+            action = MCTS(state, model, env, iterations=1000) # you may want to adjust the number of iterations
+        next_state, reward, done, _ = env.step(action)
+        next_state = np.concatenate(([env.shares, env.balance, env.equity], next_state)) # add the account information to the next_state
+        next_state = next_state.reshape((1, -1)) # add an extra dimension to the next_state variable
+        memory.append((state, action, reward, next_state, done))
+        state = next_state
 
-    print("Test results:")
-    print(f"Final equity: {test_env.equity}")
-    print(f"Total profit: {sum(test_env.profits)}")
+    if len(memory) >= batch_size:
+        minibatch = random.sample(memory, batch_size)
+        X_state = []
+        X_target = []
+        for state, action, reward, next_state, done in minibatch:
+            if done:
+                target = reward
+            else:
+                target = reward + gamma * np.amax(model.predict(next_state)[0])
+            target_f = model.predict(state)
+            target_f[0][action] = target
+            X_state.append(state.reshape((1, -1)))
+            X_target.append(target_f.reshape((1, -1)))
+        X_state = np.concatenate(X_state, axis=0)
+        X_target = np.concatenate(X_target, axis=0)
+        model.fit(X_state, X_target, epochs=1, verbose=0)
 
-if __name__ == '__main__':
-    main()
+    if epsilon > epsilon_min:
+        epsilon *= epsilon_decay
+
+return model
